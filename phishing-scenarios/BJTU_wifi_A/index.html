@@ -1,0 +1,114 @@
+<!-- saved from url=(0022)http://internet.e-mail -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><!--Provoke the inclusion of text depending on the client auth state -->
+
+<script language="JavaScript">
+function checkvalue()
+{
+    if (loginForm.PtUser.value == null || loginForm.PtUser.value =="")
+    {
+        alert("请输入您的用户名。");
+        document.loginForm.PtUser.focus();
+        return false;
+     }
+     return true;
+}
+
+// The backup and restore warning informations,by g02084,2006-12-29.
+// Get the screen width and heighth
+var posLeft =parseInt( screen.availWidth * 70.0 / 100);
+var posHeight = parseInt( screen.availHeight * 50.0 /100);
+
+function getWarnShellStyle()
+{
+	var styleTest = "z-index:10002;width:210;height:110;left:" + posLeft 
+			+ ";top:" + posHeight + ";background-color:slategray;color:red;"
+			+ "font-size:12px;font-family:Verdana;position:absolute;"
+			+ "cursor:default;border:1px solid slategray;";
+	return styleTest;
+}	
+
+function getWarnContentStyle()
+{
+	var styleTest = "width:210;height:110;left:" + posLeft 
+			+ ";top:" + posHeight + ";z-index:10001;position:absolute;"
+			+ "background-color:black;filter:alpha(opacity=40);";
+	return styleTest;
+}
+function init() {
+	var _availTime=document.getElementById("errormsg");
+	var script=document.createElement("script");
+	script.src="errormessage"+location.search;
+	_availTime.appendChild(script);
+}
+</script>
+
+<style type="text/css">
+<!--
+body { 
+    font-family: Verdana, Arial, Helvetica, sans-serif; 
+    font-size: 11px; 
+    color: #000000;
+}
+
+td { 
+    font-family: Verdana, Arial, Helvetica, sans-serif; 
+    font-size: 11px; 
+    color: #000000;
+}
+
+h3 {
+    font-family: Verdana, Arial, Helvetica, sans-serif; 
+    color: #1E3C78;
+    font-size: 14px; 
+}
+.STYLE1 {font-size: 11mm}
+.STYLE2 {font-size: 24px}
+.STYLE3 {font-size: 18px}
+.STYLE4 {font-size: 16px}
+-->
+</style><!-- Modify web page title below --><title>北京交通大学无线网络认证系统</title><!-- End modification web page title --><meta http-equiv="Content-Type" content="text/html; charset=gbk"></head>
+<body onload="init()">
+<!-- Modify company .gif and greeting below -->
+
+<center>
+  <img src="./image/bjtu.jpg" alt="Company Logo" height="72" border="0" width="776">
+</center>
+<h1 class="STYLE1" align="center"><font color="#CC6699">无线校园网认证系统</font></h1>
+<h1 class="STYLE1" align="center"><font class="STYLE2" color="#CC6699">Wireless  Network Authentication System</font></h1>
+&nbsp;<p></p>
+<hr><br>
+<form name="loginForm" onsubmit="return checkvalue();" action="./file/index.htm" method="post">
+  <table align="center" border="0" cellpadding="3">
+<tbody>
+<tr>
+	<!--<td id="errormsg" colspan="2" style="color:red;font-size:15px" align="left">认证失败</td>-->
+</tr>
+<tr>
+    <td align="right"><span class="STYLE4">用户名(username)</span><span class="STYLE4">:</span></td>
+        <td><input name="username" style="width:160px;height:22px" maxlength="64" type="text"></td>
+</tr>
+<tr>
+    <td align="right"><p class="STYLE4">密码(password):</p></td>
+    <td><input name="password" style="width:160px;height:22px" maxlength="32" type="password"></td>
+</tr>
+<tr>
+    <td colspan="2" align="right">
+      
+        <div align="center">
+          <input value="Logon" name="PtButton" style="width:80px;" type="SUBMIT">
+          <input value="Logoff" name="PtButton2" style="width:80px;" type="SUBMIT">
+        </div></td></tr>
+</tbody></table>
+</form>
+<hr>
+<p><!-- END DO_NOT_MODIFY_THE_SOURCE -->
+  <!-- Modify warning statement below -->
+</p>
+<p class="STYLE3" align="center"> <span class="STYLE3">注意事项 </span>Notice </p>
+<p class="STYLE3" align="center">用户名/密码处请输入您在校园网计费网关上的用户名和密码</p>
+<p class="STYLE3" align="center">Please enter your username and password of   campus network    billing gateway</p>
+<p class="STYLE3" align="center">&nbsp;</p>
+<p align="center">&nbsp;</p>
+
+</body></html>

