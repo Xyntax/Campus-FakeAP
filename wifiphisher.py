@@ -1111,7 +1111,7 @@ if __name__ == "__main__":
     hop.daemon = True
     hop.start()
     # 嗅探接口并处理输出
-    sniffing(virtual_iface, targeting_cb)
+    sniffing(virtual_iface, targeting_cb) # ----------------------------------_!!!!!!!!!!!
     # 复制指定AP的设置
     channel, essid, ap_mac = copy_AP()
     # 结束线程守护
